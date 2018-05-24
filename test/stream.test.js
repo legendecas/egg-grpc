@@ -5,6 +5,7 @@ const path = require('path');
 const assert = require('assert');
 const grpc = require('grpc');
 const pedding = require('pedding');
+const { fork } = require('child_process');
 
 describe('test/stream.test.js', () => {
   let server;
@@ -12,15 +13,20 @@ describe('test/stream.test.js', () => {
   let ctx;
   let client;
   before(function* () {
+    server = fork(path.join(__dirname, 'fixtures/apps/example/grpc_server'));
+    yield new Promise(resolve => server.once('message', resolve));
     app = mm.app({ baseDir: 'apps/example' });
-    server = require(path.join(__dirname, 'fixtures/apps/example/grpc_server'))();
     yield app.ready();
     ctx = app.mockContext();
     client = ctx.grpc.example.test;
   });
 
-  after(done => server.tryShutdown(done));
+  after(() => client.close());
   after(() => app.close());
+  after(done => {
+    server.on('exit', done);
+    server.kill();
+  });
   afterEach(mm.restore);
 
   describe('Client Stream', () => {
@@ -29,6 +35,7 @@ describe('test/stream.test.js', () => {
       // metadata -> callback -> status
       done = pedding(3, done);
       const stream = client.echoClientStream({ a: 'b' }, (err, response) => {
+        assert(err == null);
         // callback trigger after metadata before status
         assert.deepEqual(step, [ 1 ]);
         step.push(2);

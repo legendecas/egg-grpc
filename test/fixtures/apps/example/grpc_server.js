@@ -131,6 +131,10 @@ module.exports = (host = 'localhost:50051') => {
   server.start();
   console.log('grpc server start at %s', host);
   server.host = host;
+
+  if (process.send) {
+    process.send('server ready');
+  }
   return server;
 };
 

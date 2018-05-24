@@ -4,6 +4,7 @@ const mm = require('egg-mock');
 const path = require('path');
 const assert = require('assert');
 const grpc = require('grpc');
+const { fork } = require('child_process');
 
 describe('test/options.test.js', () => {
   let server;
@@ -11,15 +12,20 @@ describe('test/options.test.js', () => {
   let ctx;
   let client;
   before(function* () {
+    server = fork(path.join(__dirname, 'fixtures/apps/example/grpc_server'));
+    yield new Promise(resolve => server.once('message', resolve));
     app = mm.app({ baseDir: 'apps/example' });
-    server = require(path.join(__dirname, 'fixtures/apps/example/grpc_server'))();
     yield app.ready();
     ctx = app.mockContext();
     client = ctx.grpc.example.test;
   });
 
-  after(done => server.tryShutdown(done));
+  after(() => client.close());
   after(() => app.close());
+  after(done => {
+    server.on('exit', done);
+    server.kill();
+  });
   afterEach(mm.restore);
 
   it('should echo with timeout', function* () {
